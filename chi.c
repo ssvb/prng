@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <assert.h>
 /*
 ----------------------------------------------------------------------
 By Bob Jenkins, amateur generator of random number generators, 1994
@@ -21,7 +22,7 @@ Instructions: If "get" is within "expect +- 3*sqrt(expect)", then the
 */
 
 typedef  unsigned      char u1;   /* u1 is unsigned, 1 byte  */
-typedef  unsigned long int  u4;   /* u4 is unsigned, 4 bytes */
+typedef  unsigned      int  u4;   /* u4 is unsigned, 4 bytes */
 typedef  unsigned long long u8;   /* u8 is unsigned, 8 bytes */
 static FILE *xx;
 
@@ -349,7 +350,7 @@ u4      len;
     V += (Q*Q)/R;
   }
 
-  printf("%s: expect %5ld  get %12.4f  chi %12.4f\n",
+  printf("%s: expect %5d  get %12.4f  chi %12.4f\n",
          name, len-1, V, (V-(len-1))/sqrt((float)(len-1)));
   for (i=0; i<len; ++i) { 
     if (!(i&7)) printf("\n");
@@ -382,23 +383,23 @@ void mydump(u8 i8, u4 *mem, u4 *rsl, u4 a, u4 b, u4 z,
   fprintf(f, "rsl:\n");
   for (i=0; i<SIZE; ++i)
     fprintf(f, "  %.8x\n", rsl[i]);
-  fprintf(f, "a: %ld\n", a);
-  fprintf(f, "b: %ld\n", b);
-  fprintf(f, "z: %ld\n", z);
+  fprintf(f, "a: %d\n", a);
+  fprintf(f, "b: %d\n", b);
+  fprintf(f, "z: %d\n", z);
   fprintf(f, "mem2:\n");
   for (i=0; i<NNN; ++i)
-    fprintf(f, "  %.8lx\n", mem2[i]);
+    fprintf(f, "  %.8x\n", mem2[i]);
   fprintf(f, "rsl2:\n");
   for (i=0; i<NNN; ++i)
-    fprintf(f, "  %.8lx\n", rsl2[i]);
-  fprintf(f, "a2: %ld\n", a2);
-  fprintf(f, "b2: %ld\n", b2);
+    fprintf(f, "  %.8x\n", rsl2[i]);
+  fprintf(f, "a2: %d\n", a2);
+  fprintf(f, "b2: %d\n", b2);
   fprintf(f, "ss:\n");
   for (i=0; i<SIZE; ++i)
-    fprintf(f, "  %.8lx\n", ss[i]);
+    fprintf(f, "  %.8x\n", ss[i]);
   fprintf(f, "tt:\n");
   for (i=0; i<SIZE; ++i)
-    fprintf(f, "  %.8lx\n", tt[i]);
+    fprintf(f, "  %.8x\n", tt[i]);
   fprintf(f, "unidata:\n");
   for (i=0; i<USIZE; ++i)
     fprintf(f, "  %.16llx\n", unidata[i]);
@@ -419,16 +420,16 @@ void mydump(u8 i8, u4 *mem, u4 *rsl, u4 a, u4 b, u4 z,
     fprintf(f, "  %.16llx\n", gap2data[i]);
   fprintf(f, "cycm:\n");
   for (i=0; i<SIZE; ++i)
-    fprintf(f, "  %.8lx\n", cycm[i]);
-  fprintf(f, "cyca: %ld\n", cyca);
-  fprintf(f, "cycb: %ld\n", cycb);
-  fprintf(f, "cycz: %ld\n", cycz);
+    fprintf(f, "  %.8x\n", cycm[i]);
+  fprintf(f, "cyca: %d\n", cyca);
+  fprintf(f, "cycb: %d\n", cycb);
+  fprintf(f, "cycz: %d\n", cycz);
   fprintf(f, "gaplast:\n");
   for (i=0; i<USIZE; ++i)
-    fprintf(f, "  %.8lx\n", gaplast[i]);
+    fprintf(f, "  %.8x\n", gaplast[i]);
   fprintf(f, "njkdata:\n");
   for (i=0; i<USIZE; ++i)
-    fprintf(f, "  %.8lx\n", gap2last[i]);
+    fprintf(f, "  %.8x\n", gap2last[i]);
   fclose(f);
 }
 
@@ -449,27 +450,27 @@ void myload(u8 *i8, u4 *mem, u4 *rsl, u4 *a, u4 *b, u4 *z,
   fscanf(f, "i8: %lld\n", i8);
   fscanf(f, "mem:\n");
   for (i=0; i<SIZE; ++i)
-    fscanf(f, "  %lx\n", &mem[i]);
+    fscanf(f, "  %x\n", &mem[i]);
   fscanf(f, "rsl:\n");
   for (i=0; i<SIZE; ++i)
-    fscanf(f, "  %lx\n", &rsl[i]);
-  fscanf(f, "a: %ld\n", a);
-  fscanf(f, "b: %ld\n", b);
-  fscanf(f, "z: %ld\n", z);
+    fscanf(f, "  %x\n", &rsl[i]);
+  fscanf(f, "a: %d\n", a);
+  fscanf(f, "b: %d\n", b);
+  fscanf(f, "z: %d\n", z);
   fscanf(f, "mem2:\n");
   for (i=0; i<NNN; ++i)
-    fscanf(f, "  %lx\n", &mem2[i]);
+    fscanf(f, "  %x\n", &mem2[i]);
   fscanf(f, "rsl2:\n");
   for (i=0; i<NNN; ++i)
-    fscanf(f, "  %lx\n", &rsl2[i]);
-  fscanf(f, "a2: %ld\n", a2);
-  fscanf(f, "b2: %ld\n", b2);
+    fscanf(f, "  %x\n", &rsl2[i]);
+  fscanf(f, "a2: %d\n", a2);
+  fscanf(f, "b2: %d\n", b2);
   fscanf(f, "ss:\n");
   for (i=0; i<SIZE; ++i)
     fscanf(f, "  %x\n", &ss[i]);
   fscanf(f, "tt:\n");
   for (i=0; i<SIZE; ++i)
-    fscanf(f, "  %lx\n", &tt[i]);
+    fscanf(f, "  %x\n", &tt[i]);
   fscanf(f, "unidata:\n");
   for (i=0; i<USIZE; ++i)
     fscanf(f, "  %llx\n", &unidata[i]);
@@ -490,16 +491,16 @@ void myload(u8 *i8, u4 *mem, u4 *rsl, u4 *a, u4 *b, u4 *z,
     fscanf(f, "  %llx\n", &gap2data[i]);
   fscanf(f, "cycm:\n");
   for (i=0; i<SIZE; ++i)
-    fscanf(f, "  %lx\n", &cycm[i]);
-  fscanf(f, "cyca: %ld\n", cyca);
-  fscanf(f, "cycb: %ld\n", cycb);
-  fscanf(f, "cycz: %ld\n", cycz);
+    fscanf(f, "  %x\n", &cycm[i]);
+  fscanf(f, "cyca: %d\n", cyca);
+  fscanf(f, "cycb: %d\n", cycb);
+  fscanf(f, "cycz: %d\n", cycz);
   fscanf(f, "gaplast:\n");
   for (i=0; i<USIZE; ++i)
-    fscanf(f, "  %lx\n", &gaplast[i]);
+    fscanf(f, "  %x\n", &gaplast[i]);
   fscanf(f, "njkdata:\n");
   for (i=0; i<USIZE; ++i)
-    fscanf(f, "  %lx\n", &gap2last[i]);
+    fscanf(f, "  %x\n", &gap2last[i]);
   fclose(f);
 }
 
@@ -585,6 +586,11 @@ int main( int argc, char **argv)
 {
   u4     i,j,k,expected, need_load = 0;
   double actual;
+
+  assert(sizeof(u1) == 1);
+  assert(sizeof(u4) == 4);
+  assert(sizeof(u8) == 8);
+
   need_load = (argc == 2 && strcmp(argv[1], DUMP) == 0);
 
   uprob( uniprob, USIZE);

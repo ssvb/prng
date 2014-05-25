@@ -14,9 +14,10 @@
 #include <math.h>
 #include <float.h>
 #include <time.h>
+#include <assert.h>
 
 typedef  unsigned char      u1;
-typedef  unsigned long      u4;
+typedef  unsigned int       u4;
 typedef  unsigned long long u8;
 
 #define LOGBUCKETS 2
@@ -196,7 +197,11 @@ int main( int argc, char **argv)
   u4 i, loglen, terms;
   ranctx r;
   time_t a,z;
-  
+
+  assert(sizeof(u1) == 1);
+  assert(sizeof(u4) == 4);
+  assert(sizeof(u8) == 8);
+
   time(&a);
   if (argc == 3) {
     sscanf(argv[1], "%d", &loglen);
@@ -231,5 +236,5 @@ int main( int argc, char **argv)
   free(data);
 
   time(&z);
-  printf("number of seconds: %6d\n", (size_t)(z-a));
+  printf("number of seconds: %6d\n", (int)(z-a));
 }

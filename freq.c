@@ -6,9 +6,10 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <assert.h>
 
 typedef  unsigned char      u1;
-typedef  unsigned long      u4;
+typedef  unsigned int       u4;
 typedef  unsigned long long u8;
 
 #define BUCKETS (1<<8)
@@ -16,8 +17,6 @@ typedef  unsigned long long u8;
 typedef struct ranctx { u4 a; u4 b; u4 c; u4 d;} ranctx;
 
 #define rot(x,k) ((x<<k)|(x>>(32-k)))
-
-static u4 iii = 0;
 
 static u4 ranval( ranctx *x ) {
   u4 e = x->a - rot(x->b, 27);
@@ -83,10 +82,14 @@ int main( int argc, char **argv)
 {
   u8 len;
   u8 data[BUCKETS];
-  u4 loglen = 0;
+  int loglen = 0;
   ranctx r;
   time_t a,z;
-  
+
+  assert(sizeof(u1) == 1);
+  assert(sizeof(u4) == 4);
+  assert(sizeof(u8) == 8);
+
   time(&a);
   if (argc == 2) {
     sscanf(argv[1], "%d", &loglen);
@@ -103,5 +106,5 @@ int main( int argc, char **argv)
   chi(data, len);
 
   time(&z);
-  printf("number of seconds: %6d\n", (size_t)(z-a));
+  printf("number of seconds: %6d\n", (int)(z-a));
 }

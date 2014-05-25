@@ -12,9 +12,10 @@
 #include <math.h>
 #include <float.h>
 #include <time.h>
+#include <assert.h>
 
 typedef  unsigned char      u1;
-typedef  unsigned long      u4;
+typedef  unsigned int       u4;
 
 #define BUCKETS 128
 #define LOGLEN  16
@@ -159,7 +160,10 @@ int main( int argc, char **argv)
 {
   u4 i, j, k;
   time_t a,z;
-  
+
+  assert(sizeof(u1) == 1);
+  assert(sizeof(u4) == 4);
+
   time(&a);
 
   for (i=0; i<30; ++i) {
@@ -175,5 +179,5 @@ int main( int argc, char **argv)
 
   time(&z);
 
-  printf("number of seconds: %6d\n", (size_t)(z-a));
+  printf("number of seconds: %6d\n", (int)(z-a));
 }
