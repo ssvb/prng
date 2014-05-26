@@ -15,6 +15,7 @@
 #include <float.h>
 #include <time.h>
 #include <assert.h>
+#include "prng.h"
 
 typedef  unsigned char      u1;
 typedef  unsigned int       u4;
@@ -24,31 +25,6 @@ typedef  unsigned long long u8;
 #define BUCKETS (1<<LOGBUCKETS)
 #define TERMS 6
 #define GRAY_CODE 1
-
-typedef struct ranctx { u4 a; u4 b; u4 c; u4 d;} ranctx;
-
-#define rot(x,k) ((x<<k)|(x>>(32-k)))
-
-static u4 iii = 0;
-
-static u4 ranval( ranctx *x ) {
-  u4 e;
-  e = x->a;
-  x->a = x->b;
-  x->b = rot(x->c, 19) + x->d;
-  x->c = x->d ^ x->a;
-  x->d = e + x->b;
-  return x->c; 
-}
-
-static void raninit( ranctx *x, u4 seed ) {
-  u4 i;
-  x->a = 0xf1ea5eed; 
-  x->b = x->c = x->d = seed;
-  for (i=0; i<20; ++i) {
-    (void)ranval(x);
-  }
-}
 
 /* count how many bits are set in a 32-bit integer, returns 0..32 */
 static u4 count(u4 x)

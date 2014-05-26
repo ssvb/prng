@@ -5,7 +5,7 @@ project(prng)
 add_executable(chi chi.c)
 target_link_libraries(chi m)
 
-add_executable(countx countx.c)
+add_executable(countx countx.c prng.c prng.h)
 target_link_libraries(countx m)
 
 add_executable(freq freq.c)
