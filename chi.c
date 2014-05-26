@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <assert.h>
+#include "prng.h"
 /*
 ----------------------------------------------------------------------
 By Bob Jenkins, amateur generator of random number generators, 1994
@@ -20,6 +21,8 @@ Instructions: If "get" is within "expect +- 3*sqrt(expect)", then the
   MYRUNS until the tests fail.  Where does the bias come from?
 ----------------------------------------------------------------------
 */
+
+ranctx r;
 
 typedef  unsigned      char u1;   /* u1 is unsigned, 1 byte  */
 typedef  unsigned      int  u4;   /* u4 is unsigned, 4 bytes */
@@ -48,7 +51,6 @@ static u4 tt[SIZE];
 static u4 rsl[SIZE];              /* r: results given to the user */
 static u4 cycr[SIZE];              /* r: results given to the user */
 static u4 cycm[SIZE];
-static u4 iii,jjj,kkk,lll;
 
 static u8     unidata[USIZE];
 static u8     njkdata[USIZE];
@@ -137,14 +139,7 @@ u4 *tt;   /* more extra state */
 
   for (i=0; i<SIZE; ++i)
   {
-    /* xxx */
-    x = a;
-    a = b;
-    b = (c<<19) + (c>>13) + d;
-    c = d ^ a;
-    d = x + b;
-
-    rr[i] = (c&0x3)|(((c>>19)&0x3)<<2);
+    rr[i] = ranval(&r) & ((1 << OMICRON) - 1);
   }
 
   *aa = a; *bb = b; *cc = c; mm[0] = d;
@@ -590,6 +585,7 @@ int main( int argc, char **argv)
   assert(sizeof(u1) == 1);
   assert(sizeof(u4) == 4);
   assert(sizeof(u8) == 8);
+  raninit(&r, 0);
 
   need_load = (argc == 2 && strcmp(argv[1], DUMP) == 0);
 
@@ -597,7 +593,7 @@ int main( int argc, char **argv)
   gprob( gapprob, GSIZE);
   rprob( runprob, USIZE);
   for (i=0; i<SIZE; ++i) mem[i] = (i+1)&UMASK;
-  for (jjj=0; jjj<1; ++jjj)
+  for (j=0; j<1; ++j)
     driver(need_load);
   return 1;
 }

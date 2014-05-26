@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(prng)
 
-add_executable(chi chi.c)
+add_executable(chi chi.c prng.c prng.h)
 target_link_libraries(chi m)
 
 add_executable(countx countx.c prng.c prng.h)
