@@ -13,6 +13,7 @@
 #include <float.h>
 #include <time.h>
 #include <assert.h>
+#include "prng.h"
 
 typedef  unsigned char      u1;
 typedef  unsigned int       u4;
@@ -20,41 +21,6 @@ typedef  unsigned int       u4;
 #define BUCKETS 128
 #define LOGLEN  16
 #define CUTOFF  13.0
-
-typedef struct ranctx { u4 a; u4 b; u4 c; u4 d;} ranctx;
-
-#define rot(x,k) ((x<<(k))|(x>>(32-(k))))
-
-static u4 iii, jjj, kkk;
-
-static u4 ranval( ranctx *x ) {
-  /* xxx: the generator being tested */
-  u4 e = x->a - rot(x->b, iii);
-  x->a = x->b ^ rot(x->c, jjj);
-  x->b = x->c + rot(x->d, kkk);
-  x->c = x->d + e;
-  x->d = e + x->a;
-  return x->d; 
-#ifdef NEVER
-  /* yyy: the same generator in reverse */
-  u4 e = x->d - x->a;
-  x->d = x->c - e;
-  x->c = x->b - rot(x->d, 32-kkk);
-  x->b = x->a ^ rot(x->c, 32-jjj);
-  x->a = e + rot(x->b, 32-iii);
-  return x->d;
-#endif
-}
-
-static u4 raninit( ranctx *x, u4 seed ) {
-  u4 i, e;
-  x->a = x->b = x->c = 0xf1ea5eed;
-  x->d = seed - x->a;
-  for (i=0; i<20; ++i) {
-    e = ranval(x);
-  }
-  return e;
-}
 
 /* count how many bits are set in a 32-bit integer, returns 0..32 */
 static u4 count(u4 x)

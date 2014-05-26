@@ -10,5 +10,5 @@ target_link_libraries(countx m)
 
 add_executable(freq freq.c)
 
-add_executable(rngav rngav.c)
+add_executable(rngav rngav.c prng.c prng.h)
 target_link_libraries(rngav m)
