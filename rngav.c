@@ -19,7 +19,6 @@ int nrounds = 4;
 int step_i  = 1;
 int step_j  = 1;
 int step_k  = 1;
-double cutoff;
 
 #define BUCKETS (nbits * 4)
 #define LOGLEN  16
@@ -82,9 +81,7 @@ static void gather(ranctx *x, uint64_t *data, uint64_t *data2, uint64_t length)
   }
 }
 
-
-static int report(uint64_t *data, uint64_t *data2, uint64_t length,
-                  int print, double cutoff)
+static double calc_worst_helper(uint64_t *data, uint64_t *data2, uint64_t length)
 {
   int i;
   double worst = data[0];
@@ -97,23 +94,16 @@ static int report(uint64_t *data, uint64_t *data2, uint64_t length,
     }
   }
   worst /= length;
-  if (worst >= cutoff) {
-    if (print) {
-      printf("iii=%2d jjj=%2d kkk=%2d worst=%14.4f\n", 
-	     iii, jjj, kkk, worst);
-    }
-    return 1;
-  } else {
-    return 0;
-  }
+  return worst;
 }
 
-void driver()
+double calc_worst(double cutoff)
 {
   int i;
   uint64_t data[BUCKETS];
   uint64_t data2[BUCKETS];
   ranctx r;
+  double worst;
 
   (void)raninit(&r, 0);
   datainit(data, data2);
@@ -121,9 +111,86 @@ void driver()
   for (i=6; i<LOGLEN; ++i) {
     double adjusted_cutoff = cutoff - ((i+1)==LOGLEN ? 0 : 0.1);
     gather(&r, data, data2, (1<<i));
-    if (!report(data, data2, (1<<(i+1)), ((i+1)==LOGLEN), adjusted_cutoff)) {
+    worst = calc_worst_helper(data, data2, (1<<(i+1)));
+    if (worst < adjusted_cutoff)
+        return 0;
+  }
+  return worst;
+}
+
+typedef struct prng_result { int i, j, k; double worst; } prng_result;
+
+int get_results(prng_result *results, int maxresults, double cutoff)
+{
+  double worst;
+  int i, j, k;
+  int nresults = 0;
+
+  for (i = 0; i < nbits; i += step_i) {
+    for (j = 0; j < nbits; j += step_j) {
+      jjj = j;
+      iii = i;
+      for (k = 0; k < nbits; k += step_k) {
+        kkk = k;
+        worst = calc_worst(cutoff);
+        if (worst >= cutoff) {
+          results[nresults].i = i;
+          results[nresults].j = j;
+          results[nresults].k = k;
+          results[nresults].worst = worst;
+          nresults++;
+        }
+        if (nresults == maxresults)
+            return nresults;
+      }
+    }
+  }
+  return nresults;
+}
+
+#define MAX_RESULTS    25
+#define WANTED_RESULTS 10
+
+void driver(double initial_cutoff)
+{
+  /* try to find the best cutoff point */
+  double maxcutoff = nbits / 2;
+  double mincutoff = 0;
+  double cutoff = (maxcutoff + mincutoff) / 2;
+  int loopcount = 0;
+
+  if (initial_cutoff > mincutoff &&
+      initial_cutoff < maxcutoff) {
+    cutoff = initial_cutoff;
+  }
+
+  int nresults, i;
+  prng_result results[MAX_RESULTS];
+  while (1) {
+    loopcount++;
+    printf("trying cutoff=%7.4f ...", cutoff);
+    fflush(stdout);
+    nresults = get_results(results, MAX_RESULTS, cutoff);
+    printf(" got %d results\n", nresults);
+    if (nresults >= MAX_RESULTS) {
+        /* cutoff is too low */
+        mincutoff = cutoff;
+        if (loopcount >= 10)
+          break;
+    } else if (nresults < WANTED_RESULTS) {
+        /* cutoff is too high */
+        maxcutoff = cutoff;
+        if (loopcount >= 11)
+          break;
+    } else {
       break;
     }
+    cutoff = (maxcutoff + mincutoff) / 2;
+  }
+  printf("-\n");
+  for (i = 0; i < nresults; i++) {
+    printf("(%2d, %2d, %2d) avalanche = %7.4f\n", 
+           results[i].i, results[i].j, results[i].k, results[i].worst);
   }
 }
 
@@ -131,6 +198,7 @@ int main(int argc, char *argv[])
 {
   int i, j, k;
   time_t a,z;
+  double initial_cutoff;
 
   if (argc < 4) {
     printf("Usage: rngav <nbits> <cutoff> [nrounds] [reverse] [step_i] [step_j] [step_k]\n");
@@ -142,7 +210,7 @@ int main(int argc, char *argv[])
   }
 
   nbits = atoi(argv[1]);
-  cutoff = atof(argv[2]);
+  initial_cutoff = atof(argv[2]);
   if (argc >= 4)
     nrounds = atoi(argv[3]);
   if (argc >= 5)
@@ -162,7 +230,7 @@ int main(int argc, char *argv[])
   nbits = (nbits > 64) ? 64 : nbits;
 
   printf("nbits   = %d\n", nbits);
-  printf("cutoff  = %.2f\n", cutoff);
+  printf("cutoff  = %.2f\n", initial_cutoff);
   printf("nrounds = %d\n", nrounds);
   printf("reverse = %d\n", reverse);
   printf("step_i  = %d\n", step_i);
@@ -172,16 +240,7 @@ int main(int argc, char *argv[])
 
   time(&a);
 
-  for (i = 0; i < nbits; i += step_i) {
-    for (j = 0; j < nbits; j += step_j) {
-      jjj = j;
-      iii = i;
-      for (k = 0; k < nbits; k += step_k) {
-          kkk = k;
-          driver();
-      }
-    }
-  }
+  driver(initial_cutoff);
 
   time(&z);
 
