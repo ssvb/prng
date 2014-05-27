@@ -10,7 +10,7 @@ int iii = 23, jjj = 16, kkk = 11;
 int nbits = 32;
 int reverse = 0;
 
-#define rot(x,k,nbits) ((x<<(k)) | (x>>(nbits-(k))))
+#define rot(x,k,nbits) ((k == 0) ? (x) : ((x<<(k)) | (x>>(nbits-(k)))))
 
 uint64_t ranval(ranctx *x)
 {
