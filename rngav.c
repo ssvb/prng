@@ -15,30 +15,38 @@
 #include <assert.h>
 #include "prng.h"
 
-typedef  unsigned char      u1;
-typedef  unsigned int       u4;
+int nrounds = 4;
+int step_i  = 1;
+int step_j  = 1;
+int step_k  = 1;
+double cutoff;
 
-#define BUCKETS 128
+#define BUCKETS (nbits * 4)
 #define LOGLEN  16
-#define CUTOFF  13.0
 
-/* count how many bits are set in a 32-bit integer, returns 0..32 */
-static u4 count(u4 x)
+/* count how many bits are set in a 64-bit integer, returns 0..64 */
+static inline uint64_t count(uint64_t x)
 {
-  u4 c = x;
+  uint32_t c1 = x, c2 = x >> 32;
+  c1 = (c1 & 0x55555555) + ((c1>>1 ) & 0x55555555);
+  c1 = (c1 & 0x33333333) + ((c1>>2 ) & 0x33333333);
+  c1 = (c1 & 0x0f0f0f0f) + ((c1>>4 ) & 0x0f0f0f0f);
+  c1 = (c1 & 0x00ff00ff) + ((c1>>8 ) & 0x00ff00ff);
+  c1 = (c1 & 0x0000ffff) + ((c1>>16) & 0x0000ffff);
 
-  c = (c & 0x55555555) + ((c>>1 ) & 0x55555555);
-  c = (c & 0x33333333) + ((c>>2 ) & 0x33333333);
-  c = (c & 0x0f0f0f0f) + ((c>>4 ) & 0x0f0f0f0f);
-  c = (c & 0x00ff00ff) + ((c>>8 ) & 0x00ff00ff);
-  c = (c & 0x0000ffff) + ((c>>16) & 0x0000ffff);
-  return c;
+  c2 = (c2 & 0x55555555) + ((c2>>1 ) & 0x55555555);
+  c2 = (c2 & 0x33333333) + ((c2>>2 ) & 0x33333333);
+  c2 = (c2 & 0x0f0f0f0f) + ((c2>>4 ) & 0x0f0f0f0f);
+  c2 = (c2 & 0x00ff00ff) + ((c2>>8 ) & 0x00ff00ff);
+  c2 = (c2 & 0x0000ffff) + ((c2>>16) & 0x0000ffff);
+
+  return c1 + c2;
 }
 
 /* initialize the data collection array */
-static void datainit( u4 *data, u4 *data2)
+static void datainit(uint64_t *data, uint64_t *data2)
 {
-  u4 i;
+  int i;
   for (i=0; i<BUCKETS; ++i) {
     data[i] = 0;   /* look for poor XOR mixing */
     data2[i] = 0;  /* look for poor additive mixing */
@@ -46,57 +54,53 @@ static void datainit( u4 *data, u4 *data2)
 }
 
 /* gather statistics on len overlapping subsequences of length 5 each */
-static void gather( ranctx *x, u4 *data, u4 *data2, u4 length)
+static void gather(ranctx *x, uint64_t *data, uint64_t *data2, uint64_t length)
 {
-  u4 i, j, h;
-  u4 k;
+  uint64_t i, j, h;
+  uint64_t k;
   ranctx y;
 
   for (i=0; i<BUCKETS; ++i) {
     for (k=0; k<length; ++k) {
       y = *x;
-      if (i<32)
-	y.a ^= (1<<i);
-      else if (i<64)
-	y.b ^= (1<<(i-32));
-      else if (i<96)
-	y.c ^= (1<<(i-64));
-      else
-	y.d ^= (1<<(i-96));
-      for (j=0; j<4; ++j) {
-	h = ranval(x) ^ ranval(&y);         /* look for poor mixing */
+      if (i < nbits)
+	y.a ^= ((uint64_t)1 << i);
+      else if (i < nbits * 2)
+	y.b ^= ((uint64_t)1 << (i - nbits));
+      else if (i < nbits * 3)
+	y.c ^= ((uint64_t)1 << (i - nbits * 2));
+      else if (i < nbits * 4)
+	y.d ^= ((uint64_t)1 << (i - nbits * 3));
+      for (j = 0; j < nrounds; ++j) {
+	h = (ranval(x) ^ ranval(&y)) & x->bitmask; /* look for poor mixing */
       }
       data[i] += count(h);
       h ^= (h<<1);     /* graycode to look for poor additive mixing */
+      h &= x->bitmask;
       data2[i] += count(h);
     }
   }
 }
 
 
-static int report( u4 *data, u4 *data2, u4 length, int print)
+static int report(uint64_t *data, uint64_t *data2, uint64_t length,
+                  int print, double cutoff)
 {
-  u4 i;
+  int i;
   double worst = data[0];
   for (i=1; i<BUCKETS; ++i) {
     if (worst > data[i]) {
       worst = data[i];
     }
-    if (worst > 32-data[i]) {
-      worst = 32-data[i];
-    }
     if (worst > data2[i]) {
       worst = data2[i];
     }
-    if (worst > 32-data2[i]) {
-      worst = 32-data2[i];
-    }
   }
   worst /= length;
-  if (worst > CUTOFF) {
+  if (worst >= cutoff) {
     if (print) {
       printf("iii=%2d jjj=%2d kkk=%2d worst=%14.4f\n", 
-	     iii, jjj, kkk, (float)worst);
+	     iii, jjj, kkk, worst);
     }
     return 1;
   } else {
@@ -106,39 +110,75 @@ static int report( u4 *data, u4 *data2, u4 length, int print)
 
 void driver()
 {
-  u4 i;
-  u4 data[BUCKETS];
-  u4 data2[BUCKETS];
+  int i;
+  uint64_t data[BUCKETS];
+  uint64_t data2[BUCKETS];
   ranctx r;
 
   (void)raninit(&r, 0);
   datainit(data, data2);
   gather(&r, data, data2, (1<<6));
   for (i=6; i<LOGLEN; ++i) {
+    double adjusted_cutoff = cutoff - ((i+1)==LOGLEN ? 0 : 0.1);
     gather(&r, data, data2, (1<<i));
-    if (!report(data, data2, (1<<(i+1)), ((i+1)==LOGLEN))) {
+    if (!report(data, data2, (1<<(i+1)), ((i+1)==LOGLEN), adjusted_cutoff)) {
       break;
     }
   }
 }
 
-int main( int argc, char **argv)
+int main(int argc, char *argv[])
 {
-  u4 i, j, k;
+  int i, j, k;
   time_t a,z;
 
-  assert(sizeof(u1) == 1);
-  assert(sizeof(u4) == 4);
+  if (argc < 4) {
+    printf("Usage: rngav <nbits> <cutoff> [nrounds] [reverse] [step_i] [step_j] [step_k]\n");
+    printf("Where: nbits     - size of each generated value in bits (up to 64)\n");
+    printf("       cutoff    - minimum avalanche threshold\n");
+    printf("       nrounds   - rounds before calculating avalanche (default 4)\n");
+    printf("       reverse   - test the reverse generator if nonzero\n");
+    exit(1);
+  }
+
+  nbits = atoi(argv[1]);
+  cutoff = atof(argv[2]);
+  if (argc >= 4)
+    nrounds = atoi(argv[3]);
+  if (argc >= 5)
+    reverse = atoi(argv[4]);
+  if (argc >= 6)
+    step_i = atoi(argv[5]);
+  if (argc >= 7)
+    step_j = atoi(argv[6]);
+  if (argc >= 8)
+    step_k = atoi(argv[7]);
+
+  if (step_i < 1) step_i = nbits;
+  if (step_j < 1) step_j = nbits;
+  if (step_k < 1) step_k = nbits;
+
+  nbits = (nbits < 4) ? 4 : nbits;
+  nbits = (nbits > 64) ? 64 : nbits;
+
+  printf("nbits   = %d\n", nbits);
+  printf("cutoff  = %.2f\n", cutoff);
+  printf("nrounds = %d\n", nrounds);
+  printf("reverse = %d\n", reverse);
+  printf("step_i  = %d\n", step_i);
+  printf("step_j  = %d\n", step_j);
+  printf("step_k  = %d\n", step_k);
+  printf("-\n");
 
   time(&a);
 
-  for (i=0; i<30; ++i) {
-    for (j=0; j<30; ++j) {
-      for (k=0; k<30; ++k) {
-	kkk = k+1;
-	jjj = j+1;
-        iii = i+1;
-	driver();
+  for (i = 0; i < nbits; i += step_i) {
+    for (j = 0; j < nbits; j += step_j) {
+      jjj = j;
+      iii = i;
+      for (k = 0; k < nbits; k += step_k) {
+          kkk = k;
+          driver();
       }
     }
   }
