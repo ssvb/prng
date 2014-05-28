@@ -19,3 +19,4 @@ typedef struct {
 
 void raninit(ranctx *x, uint64_t seed);
 uint64_t ranval(ranctx *x);
+uint32_t ranval32(ranctx *x);

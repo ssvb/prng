@@ -12,6 +12,7 @@ int reverse = 0;
 
 #define rot(x,k,nbits) ((k == 0) ? (x) : ((x<<(k)) | (x>>(nbits-(k)))))
 
+/* Generate a [0, 2^nbits - 1] uniformly distributed pseudorandom number */
 uint64_t ranval(ranctx *x)
 {
   uint64_t e;
@@ -32,6 +33,21 @@ uint64_t ranval(ranctx *x)
     x->a = e + rot(x->b, x->iii, x->nbits);
   }
   return x->d;
+}
+
+/* Generate a [0, 2^32 - 1] uniformly distributed pseudorandom number */
+uint32_t ranval32(ranctx *x)
+{
+  uint64_t result = 0;
+  int result_bits = 0;
+  if (nbits >= 32)
+    return ranval(x);
+  while (result_bits < 32) {
+    result <<= nbits;
+    result |= ranval(x);
+    result_bits += nbits;
+  }
+  return result;
 }
 
 void raninit(ranctx *x, uint64_t seed)
