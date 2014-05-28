@@ -31,10 +31,17 @@ static uint32_t count_bits(uint32_t x)
 
 static inline uint64_t get_stateidx(ranctx *r)
 {
-    return ((r->a & r->bitmask) << (r->nbits * 0)) |
-           ((r->b & r->bitmask) << (r->nbits * 1)) |
-           ((r->c & r->bitmask) << (r->nbits * 2)) |
-           ((r->d & r->bitmask) << (r->nbits * 3));
+    return ((r->d & r->bitmask) << (r->nbits * 0)) |
+           ((r->c & r->bitmask) << (r->nbits * 1)) |
+           ((r->b & r->bitmask) << (r->nbits * 2)) |
+           ((r->a & r->bitmask) << (r->nbits * 3));
+}
+
+/* No need to generate 20 values when we are only looking for cycles */
+static inline void fast_raninit(ranctx *x, uint64_t seed)
+{
+  x->a = x->b = x->c = 0xf1ea5eed & x->bitmask;
+  x->d = seed & x->bitmask;
 }
 
 void driver(int i, int j, int k)
@@ -42,9 +49,9 @@ void driver(int i, int j, int k)
   uint32_t *buffer;
   uint64_t bufsize = ((uint64_t)1 << (nbits * 4)) / 8;
   uint64_t maxseed = (uint64_t)1 << nbits;
-  uint64_t seed;
-  uint64_t idx;
+  uint64_t seed, idx, initial_state_idx;
   uint64_t bit_counter = 0;
+  ranctx r;
   u8 mincyclesize = (u8)-1;
   buffer = malloc(bufsize);
   memset(buffer, 0, bufsize);
@@ -52,23 +59,23 @@ void driver(int i, int j, int k)
   iii = i;
   jjj = j;
   kkk = k;
+  raninit(&r, 0);
+  fast_raninit(&r, 0);
+  initial_state_idx = get_stateidx(&r) & ~r.bitmask;
 
   for (seed = 0; seed < maxseed; seed++) {
-    ranctx r;
     u8 cyclesize = 0;
-    raninit(&r, seed);
-    uint64_t stateidx = get_stateidx(&r);
+    uint64_t stateidx = initial_state_idx | seed;
     /* check if we have already seen this sequence */
     if (buffer[stateidx / 32] & (1 << (stateidx % 32)))
        continue;
-    while (1) {
-      stateidx = get_stateidx(&r);
-      if (buffer[stateidx / 32] & (1 << (stateidx % 32)))
-        break;
+    fast_raninit(&r, seed);
+    do {
       buffer[stateidx / 32] |= 1 << (stateidx % 32);
       cyclesize++;
       ranval(&r);
-    }
+      stateidx = get_stateidx(&r);
+    } while (!(buffer[stateidx / 32] & (1 << (stateidx % 32))));
     if (cyclesize < mincyclesize)
       mincyclesize = cyclesize;
   }
