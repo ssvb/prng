@@ -204,9 +204,10 @@ void driver(double initial_cutoff)
       forward_avalanche = calc_worst(0);
       reverse = !reverse;
     }
-    printf("  {%2d, %2d, %2d}, /* forward avalanche: %7.4f, reverse avalanche: %7.4f */\n",
+    /* This output can be used by the cycle-statistics program */
+    printf("  {.shifts={%2d, %2d, %2d}, .nbits=%2d, .fwd_avalanche=%7.4f, .rev_avalanche=%7.4f},\n",
            results[i].i, results[i].j, results[i].k,
-           forward_avalanche, reverse_avalanche);
+           nbits, forward_avalanche, reverse_avalanche);
   }
 }
 

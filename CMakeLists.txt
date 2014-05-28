@@ -13,3 +13,5 @@ add_executable(freq freq.c prng.c prng.h)
 
 add_executable(rngav rngav.c prng.c prng.h)
 target_link_libraries(rngav m)
+
+add_executable(cycle-statistics cycle-statistics.c prng.c prng.h)
