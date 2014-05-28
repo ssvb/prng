@@ -189,8 +189,24 @@ void driver(double initial_cutoff)
   }
   printf("-\n");
   for (i = 0; i < nresults; i++) {
-    printf("(%2d, %2d, %2d) avalanche = %7.4f\n", 
-           results[i].i, results[i].j, results[i].k, results[i].worst);
+    double forward_avalanche, reverse_avalanche;
+    iii = results[i].i;
+    jjj = results[i].j;
+    kkk = results[i].k;
+    if (!reverse) {
+      forward_avalanche = results[i].worst;
+      reverse = !reverse;
+      reverse_avalanche = calc_worst(0);
+      reverse = !reverse;
+    } else {
+      reverse_avalanche = results[i].worst;
+      reverse = !reverse;
+      forward_avalanche = calc_worst(0);
+      reverse = !reverse;
+    }
+    printf("  {%2d, %2d, %2d}, /* forward avalanche: %7.4f, reverse avalanche: %7.4f */\n",
+           results[i].i, results[i].j, results[i].k,
+           forward_avalanche, reverse_avalanche);
   }
 }
 
