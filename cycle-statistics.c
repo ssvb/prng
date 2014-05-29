@@ -85,6 +85,7 @@ uint64_t driver(int i, int j, int k, uint64_t xseed)
   uint64_t bit_counter = 0;
   ranctx r;
   u8 mincyclesize = (u8)-1;
+  uint64_t worst_seed = 0;
   buffer = malloc(bufsize);
   memset(buffer, 0, bufsize);
 
@@ -119,8 +120,10 @@ uint64_t driver(int i, int j, int k, uint64_t xseed)
     uint64_t stateidx = initial_state_idx | seed;
     cyclesize = lookup_cycle_size(stateidx);
     if (cyclesize) {
-      if (cyclesize < mincyclesize)
+      if (cyclesize < mincyclesize) {
         mincyclesize = cyclesize;
+        worst_seed = seed;
+      }
       continue;
     }
 
@@ -141,8 +144,10 @@ uint64_t driver(int i, int j, int k, uint64_t xseed)
     if (cycle_cache_entry) {
       cycle_cache_data[cycle_cache_entry--] = cyclesize;
     }
-    if (cyclesize < mincyclesize)
+    if (cyclesize < mincyclesize) {
       mincyclesize = cyclesize;
+      worst_seed = seed;
+    }
   }
 
   /* Calculate the percentage of reachable states (using 'nbit' sized seed) */
@@ -151,8 +156,10 @@ uint64_t driver(int i, int j, int k, uint64_t xseed)
   }
 
   if (!xseed) {
-    printf("%2d-bit - {%2d, %2d, %2d} - smallest reachable cycle: %10llu, reachable states: %.4f%%\n",
-         nbits, i, j, k, mincyclesize, (double)bit_counter / (bufsize * 8) * 100.);
+    worst_seed = (worst_seed + 0xf1ea5eed) & r.bitmask;
+    printf("%2d-bit - {%2d, %2d, %2d} - smallest cycle %10llu for seed 0x%04X, reachable states: %.4f%%\n",
+           nbits, i, j, k, mincyclesize, (unsigned int)worst_seed,
+           (double)bit_counter / (bufsize * 8) * 100.);
   }
   free(buffer);
   return mincyclesize;
