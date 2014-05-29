@@ -29,6 +29,17 @@ static uint32_t count_bits(uint32_t x)
   return c;
 }
 
+/* https://code.google.com/p/smhasher/wiki/MurmurHash3 */
+static inline uint64_t murmurhash3_finalizer(uint64_t h)
+{
+  h ^= h >> 33;
+  h *= 0xff51afd7ed558ccdULL;
+  h ^= h >> 33;
+  h *= 0xc4ceb9fe1a85ec53ULL;
+  h ^= h >> 33;
+  return h;
+}
+
 static inline uint64_t get_stateidx(ranctx *r)
 {
     return ((r->d & r->bitmask) << (r->nbits * 0)) |
@@ -38,13 +49,34 @@ static inline uint64_t get_stateidx(ranctx *r)
 }
 
 /* No need to generate 20 values when we are only looking for cycles */
-static inline void fast_raninit(ranctx *x, uint64_t seed)
+static inline void fast_raninit(ranctx *x, uint64_t seed, uint64_t xseed)
 {
   x->a = x->b = x->c = 0xf1ea5eed & x->bitmask;
+  x->a = (x->a ^ xseed) & x->bitmask;
+  xseed >>= x->nbits;
+  x->b = (x->b ^ xseed) & x->bitmask;
+  xseed >>= x->nbits;
+  x->c = (x->c ^ xseed) & x->bitmask;
   x->d = seed & x->bitmask;
 }
 
-void driver(int i, int j, int k)
+/* The settings of the cycle cache */
+static int       cycle_cache_nbits;
+static int       cycle_cache_i, cycle_cache_j, cycle_cache_k;
+/* Number of entries in the cycle size cache */
+static int       cycle_cache_entry;
+/* Cycle size data, indexed by 8-bit data from 'cycle_cache_lookup_buffer' */
+static uint64_t  cycle_cache_data[256];
+/* A large lookup buffer for cycle_cache_data indexes (8-bit per PRNG state) */
+static uint8_t  *cycle_cache_lookup_buffer;
+
+static inline uint64_t lookup_cycle_size(uint64_t stateidx)
+{
+  uint8_t idx = cycle_cache_lookup_buffer[stateidx];
+  return idx ? cycle_cache_data[idx] : 0;
+}
+
+uint64_t driver(int i, int j, int k, uint64_t xseed)
 {
   uint32_t *buffer;
   uint64_t bufsize = ((uint64_t)1 << (nbits * 4)) / 8;
@@ -56,26 +88,59 @@ void driver(int i, int j, int k)
   buffer = malloc(bufsize);
   memset(buffer, 0, bufsize);
 
+  /* Reset the cycle size cache if needed */
+  if (i != cycle_cache_i || j != cycle_cache_j || k != cycle_cache_k ||
+                                             nbits != cycle_cache_nbits) {
+    uint64_t cycle_cache_bufsize = (uint64_t)1 << (nbits * 4);
+    free(cycle_cache_lookup_buffer);
+    cycle_cache_lookup_buffer = malloc(cycle_cache_bufsize);
+    memset(cycle_cache_lookup_buffer, 0, cycle_cache_bufsize);
+    memset(cycle_cache_data, 0, sizeof(cycle_cache_data));
+    cycle_cache_entry = 255;
+    cycle_cache_i = i;
+    cycle_cache_j = j;
+    cycle_cache_k = k;
+    cycle_cache_nbits = nbits;
+  }
+
+  xseed = murmurhash3_finalizer(xseed);
+
   iii = i;
   jjj = j;
   kkk = k;
   raninit(&r, 0);
-  fast_raninit(&r, 0);
+  fast_raninit(&r, 0, xseed);
   initial_state_idx = get_stateidx(&r) & ~r.bitmask;
 
   for (seed = 0; seed < maxseed; seed++) {
     u8 cyclesize = 0;
+
+    /* check if we can find this sequence in the cache */
     uint64_t stateidx = initial_state_idx | seed;
-    /* check if we have already seen this sequence */
+    cyclesize = lookup_cycle_size(stateidx);
+    if (cyclesize) {
+      if (cyclesize < mincyclesize)
+        mincyclesize = cyclesize;
+      continue;
+    }
+
+    /* check if we have already seen this sequence in the current run */
     if (buffer[stateidx / 32] & (1 << (stateidx % 32)))
        continue;
-    fast_raninit(&r, seed);
+
+    fast_raninit(&r, seed, xseed);
     do {
       buffer[stateidx / 32] |= 1 << (stateidx % 32);
+      if (cycle_cache_entry) {
+        cycle_cache_lookup_buffer[stateidx] = cycle_cache_entry;
+      }
       cyclesize++;
       ranval(&r);
       stateidx = get_stateidx(&r);
     } while (!(buffer[stateidx / 32] & (1 << (stateidx % 32))));
+    if (cycle_cache_entry) {
+      cycle_cache_data[cycle_cache_entry--] = cyclesize;
+    }
     if (cyclesize < mincyclesize)
       mincyclesize = cyclesize;
   }
@@ -85,15 +150,19 @@ void driver(int i, int j, int k)
     bit_counter += count_bits(buffer[idx]);
   }
 
-  printf("%2d-bit - {%2d, %2d, %2d} - smallest reachable cycle: %10llu, reachable states: %.4f%%\n",
+  if (!xseed) {
+    printf("%2d-bit - {%2d, %2d, %2d} - smallest reachable cycle: %10llu, reachable states: %.4f%%\n",
          nbits, i, j, k, mincyclesize, (double)bit_counter / (bufsize * 8) * 100.);
+  }
   free(buffer);
+  return mincyclesize;
 }
 
 typedef struct prng_info {
   struct {int i, j, k;} shifts;
   int nbits;
   double fwd_avalanche, rev_avalanche;
+  int quicktest;
 } prng_info;
 
 prng_info tbl[] = {
@@ -136,8 +205,22 @@ int main(int argc, char *argv[])
   time(&a);
   for (i = 0; i < ARRAY_SIZE(tbl); i++) {
     nbits = tbl[i].nbits;
-    driver(tbl[i].shifts.i, tbl[i].shifts.j, tbl[i].shifts.k);
+    driver(tbl[i].shifts.i, tbl[i].shifts.j, tbl[i].shifts.k, 0);
+    if (!tbl[i].quicktest) {
+      /* Threshold for (1 / 2^nbits) probability of bad cycle */
+      uint64_t threshold = (uint64_t)1 << (nbits * 2);
+      uint64_t maxseed = (uint64_t)1 << nbits;
+      uint64_t unlucky_seeds = 0, xseed;
+      for (xseed = 1; xseed <= maxseed * 32; xseed++) {
+        uint64_t mincycle = driver(tbl[i].shifts.i, tbl[i].shifts.j, tbl[i].shifts.k, xseed);
+        if (mincycle < threshold)
+          unlucky_seeds++;
+      }
+      printf("Expected 32 unlucky variants with short cycles, got %d\n", (int)unlucky_seeds);
+    }
+    printf("-\n");
   }
+  free(cycle_cache_lookup_buffer);
   time(&z);
   printf("number of seconds: %6d\n", (int)(z-a));
 }
